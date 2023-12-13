@@ -10,20 +10,25 @@ from werkzeug.utils import secure_filename
 
 from ultralytics import YOLO
 
+from imgurpython import ImgurClient
+
 from PIL.Image import Transpose
 
-import matplotlib.pyplot as plt
-
 from flask import Flask, request, jsonify, Response
-app = Flask(__name__)  
+app = Flask(__name__)
 
 model = YOLO("./best.pt")
 
-
+client_id = ''
+client_secret = ''
+access_token = 'your_access_token'
+refresh_token = 'your_refresh_token'
 
 @app.route('/')           
 def index():             
     return 'Hello world'  
+
+client = ImgurClient(client_id, client_secret, access_token, refresh_token)
 
 @app.route('/predict/image', methods=['POST'])
 def predict():
@@ -50,7 +55,7 @@ def predict():
             
             results = model(img)
 
-            
+            global uploaded_image
             try:
                 result_array = []
                     
@@ -68,7 +73,8 @@ def predict():
                     with open("output_image.png", 'rb') as f:
                         image_data_output = f.read()
 
-                    base64_str = base64.b64encode(image_data_output).decode('utf-8')
+                    # base64_str = base64.b64encode(image_data_output).decode('utf-8')
+
 
                 for box in boxes:
                     class_id = result.names[box.cls[0].item()]
@@ -77,14 +83,21 @@ def predict():
                     conf = round(box.conf[0].item(), 2)
                     result_array.append(class_id)
                     print("Object type:", class_id)
+                    
+                # upload_image_to_imgur(image_data_output)
+                print("이미지 업로드 중...")
+                uploaded_image = client.upload_from_path("output_image.png", anon=True)
+                # img_ = uploaded_image['link']
+                print("이미지 업로드 완료")
                 
                 print(result_array)
-                return jsonify({"result": result_array, "image": base64_str}), 200
+                print(uploaded_image['link'])
+                return jsonify({"result": result_array, "image": uploaded_image['link']}), 200
             except:
                 if(len(result_array) == 0):
                     return jsonify({"error": "No object detected"}), 200
                 else:
-                    return jsonify({"result": result_array, "image": base64_str}), 200
+                    return jsonify({"result": result_array, "image": uploaded_image['link']}), 200
                 
         else:
             return jsonify({"error": "Image file is missing or invalid."}), 400
